@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      2.0
 // @description  Gerencia conversas em massa e substitui o botão "Upgrade" pelo painel de controle.
-// @author       luascfl (com modificações da comunidade)
+// @author       luascfl
 // @match        https://chat.openai.com/*
 // @match        https://chatgpt.com/*
 // @icon         https://cdn-icons-png.flaticon.com/512/16459/16459818.png

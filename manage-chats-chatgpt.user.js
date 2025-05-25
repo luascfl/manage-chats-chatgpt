@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gerenciador de chats ChatGPT
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Gerenciamento em massa de conversas em plataformas de IA
 // @author       luascfl
 // @match        https://chat.openai.com/*
@@ -26,10 +26,11 @@
         'chat.openai.com': {
             name: 'ChatGPT',
             selectors: {
-                chatList: 'nav[aria-label="Chat history"]',
-                chatItems: 'nav[aria-label="Chat history"] ol > li',
-                chatLink: 'a[href^="/c/"]',
-                chatTitle: 'a > div > div'
+                // SELETORES ATUALIZADOS AQUI
+                chatList: 'nav', // Alvo mais simples e robusto para o painel de navegação
+                chatItems: 'li:has(a[href^="/c/"])', // Encontra itens de lista que contêm um link de chat
+                chatLink: 'a[href^="/c/"]', // Permanece o mesmo, é um seletor estável
+                chatTitle: 'div.truncate' // A classe 'truncate' é usada para o título visível
             },
             api: {
                 base: window.location.origin,
@@ -83,125 +84,125 @@
             const styleEl = document.createElement('style');
             styleEl.innerHTML = `
               .mass-actions {
-                background-color: var(--surface-primary);
-                padding: 10px;
-                border-radius: 8px;
-                margin-bottom: 16px;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                  background-color: var(--surface-primary);
+                  padding: 10px;
+                  border-radius: 8px;
+                  margin-bottom: 16px;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
               }
 
               .mass-actions-title {
-                font-weight: bold;
-                margin-bottom: 10px;
-                font-size: 14px;
-                color: var(--text-primary);
+                  font-weight: bold;
+                  margin-bottom: 10px;
+                  font-size: 14px;
+                  color: var(--text-primary);
               }
 
               .mass-actions-btn {
-                padding: 6px 12px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.2s;
-                border: 1px solid var(--border-primary);
-                margin-bottom: 5px;
+                  padding: 6px 12px;
+                  border-radius: 6px;
+                  font-size: 13px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  border: 1px solid var(--border-primary);
+                  margin-bottom: 5px;
               }
 
               .mass-actions-btn:hover {
-                opacity: 0.9;
+                  opacity: 0.9;
               }
 
               .btn-select-all {
-                background-color: var(--surface-secondary);
+                  background-color: var(--surface-secondary);
               }
 
               .btn-deselect-all {
-                background-color: var(--surface-secondary);
+                  background-color: var(--surface-secondary);
               }
 
               .btn-select-without-emoji {
-                background-color: var(--surface-secondary);
+                  background-color: var(--surface-secondary);
               }
 
               .btn-archive {
-                background-color: var(--surface-tertiary);
+                  background-color: var(--surface-tertiary);
               }
 
               .btn-delete {
-                background-color: rgba(255, 76, 76, 0.1);
-                color: #ff4c4c;
+                  background-color: rgba(255, 76, 76, 0.1);
+                  color: #ff4c4c;
               }
 
               .checkbox-container {
-                position: absolute;
-                left: 8px;
-                top: 0;
-                bottom: 0;
-                display: flex;
-                align-items: center;
-                z-index: 10;
+                  position: absolute;
+                  left: 8px;
+                  top: 0;
+                  bottom: 0;
+                  display: flex;
+                  align-items: center;
+                  z-index: 10;
               }
 
               .dialog-checkbox {
-                cursor: pointer;
-                width: 16px;
-                height: 16px;
+                  cursor: pointer;
+                  width: 16px;
+                  height: 16px;
               }
 
               .chat-item-container {
-                position: relative;
+                  position: relative;
               }
 
               .chat-link-padded {
-                padding-left: 30px !important;
+                  padding-left: 30px !important;
               }
 
               .chat-action-status {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 12px 16px;
-                background: var(--surface-primary);
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                z-index: 1000;
-                display: flex;
-                align-items: center;
-                font-size: 14px;
+                  position: fixed;
+                  top: 20px;
+                  right: 20px;
+                  padding: 12px 16px;
+                  background: var(--surface-primary);
+                  border-radius: 8px;
+                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                  z-index: 1000;
+                  display: flex;
+                  align-items: center;
+                  font-size: 14px;
               }
 
               .status-icon {
-                margin-right: 8px;
-                font-size: 18px;
+                  margin-right: 8px;
+                  font-size: 18px;
               }
 
               .status-success {
-                color: #4caf50;
+                  color: #4caf50;
               }
 
               .status-error {
-                color: #f44336;
+                  color: #f44336;
               }
 
               .status-loading {
-                color: #2196f3;
+                  color: #2196f3;
               }
 
               @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
               }
 
               .loading-spinner {
-                animation: spin 1s linear infinite;
-                display: inline-block;
+                  animation: spin 1s linear infinite;
+                  display: inline-block;
               }
 
               .select-count {
-                margin-left: 8px;
-                font-size: 13px;
-                color: var(--text-secondary);
+                  margin-left: 8px;
+                  font-size: 13px;
+                  color: var(--text-secondary);
               }
             `;
             document.head.appendChild(styleEl);
@@ -370,6 +371,7 @@
 
         getChatId(element) {
             const chatItem = element.closest('li');
+            if (!chatItem) return null;
             const link = chatItem.querySelector(SELECTOR.chatLink);
             return link ? new URL(link.href).pathname.split('/').pop() : null;
         }
@@ -426,7 +428,8 @@
                     });
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    checkbox.closest('li').style.opacity = '0.5';
+                    const chatItem = checkbox.closest('li');
+                    if (chatItem) chatItem.style.opacity = '0.5';
                     processed++;
 
                     // Atualizar status com progresso
@@ -464,31 +467,31 @@
                 this.uiManager.setupControlPanel();
                 this.uiManager.ensureCorrectCheckboxes();
                 this.setupObserver();
-            }, 1000);
+            }, 2000); // Aumentado para 2 segundos para garantir que a UI do chatgpt carregue
         }
 
         setupObserver() {
             // Observador para detectar mudanças na lista de chats
             const observer = new MutationObserver((mutations) => {
-                const chatList = document.querySelector(SELECTOR.chatList);
-                if (chatList) {
-                    this.uiManager.setupControlPanel();
-                    this.uiManager.ensureCorrectCheckboxes();
+                for (const mutation of mutations) {
+                    if (mutation.type === 'childList') {
+                        // Verifica se o painel de controle ou novos itens de chat precisam ser adicionados
+                        this.uiManager.setupControlPanel();
+                        this.uiManager.ensureCorrectCheckboxes();
 
-                    // Adiciona checkboxes a novos itens
-                    mutations.forEach(mutation => {
-                        if (mutation.addedNodes.length) {
-                            mutation.addedNodes.forEach(node => {
-                                if (node.nodeType === 1 && node.matches(SELECTOR.chatItems)) {
+                        // Adiciona checkboxes a novos itens que possam ter sido adicionados
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeType === 1) { // Apenas nós de elemento
+                                if (node.matches(SELECTOR.chatItems)) {
                                     this.uiManager.createCheckbox(node);
-                                } else if (node.nodeType === 1) {
-                                    node.querySelectorAll(SELECTOR.chatItems).forEach(item =>
-                                        this.uiManager.createCheckbox(item)
-                                    );
+                                } else {
+                                    node.querySelectorAll(SELECTOR.chatItems).forEach(item => {
+                                        this.uiManager.createCheckbox(item);
+                                    });
                                 }
-                            });
-                        }
-                    });
+                            }
+                        });
+                    }
                 }
             });
 

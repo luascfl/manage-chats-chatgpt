@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gerenciador de chats ChatGPT
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Gerenciamento em massa de conversas em plataformas de IA
 // @author       luascfl
 // @match        https://chat.openai.com/*
@@ -26,10 +26,10 @@
         'chat.openai.com': {
             name: 'ChatGPT',
             selectors: {
-                chatList: '.flex.flex-col.gap-2.text-token-text-primary',
-                chatItems: 'ol > li',
+                chatList: 'nav[aria-label="Chat history"]',
+                chatItems: 'nav[aria-label="Chat history"] ol > li',
                 chatLink: 'a[href^="/c/"]',
-                chatTitle: 'div[dir="auto"]'
+                chatTitle: 'a > div > div'
             },
             api: {
                 base: window.location.origin,

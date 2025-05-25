@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gerenciador de chats ChatGPT (Substitui Botão Upgrade)
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Gerencia conversas em massa e substitui o botão "Upgrade" pelo painel de controle.
 // @author       luascfl
 // @match        https://chat.openai.com/*
@@ -17,7 +17,7 @@
 
 (function() {
     'use strict';
-    console.log('[ChatManager v2.0] Script iniciado.');
+    console.log('[ChatManager v2.1] Script iniciado.');
 
     const PLATFORMS = {
         'chat.openai.com': {
@@ -42,6 +42,7 @@
     const PLATFORM = PLATFORMS[window.location.hostname] || PLATFORMS['chat.openai.com'];
     const SELECTOR = PLATFORM.selectors;
     const PRIORITY_EMOJI = PLATFORM.priorityEmoji;
+    const API_BASE = PLATFORM.api.base;
 
     class UIManager {
         constructor() {
@@ -68,6 +69,20 @@
               .select-count { font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; display: block; }
             `;
             document.head.appendChild(styleEl);
+        }
+
+        showStatus(message, type = 'loading') {
+            document.querySelector('.chat-action-status')?.remove();
+            const statusEl = document.createElement('div');
+            statusEl.className = 'chat-action-status';
+            let icon = '';
+            if (type === 'loading') icon = '<span class="status-icon status-loading"><span class="loading-spinner">⟳</span></span>';
+            else if (type === 'success') icon = '<span class="status-icon status-success">✓</span>';
+            else if (type === 'error') icon = '<span class="status-icon status-error">✕</span>';
+            statusEl.innerHTML = `${icon}${message}`;
+            document.body.appendChild(statusEl);
+            if (type !== 'loading') setTimeout(() => statusEl.remove(), 3000);
+            return statusEl;
         }
 
         createCheckbox(chatItem) {
@@ -97,30 +112,24 @@
             if (countElement) countElement.textContent = selectedCount > 0 ? `${selectedCount} selecionado${selectedCount > 1 ? 's' : ''}` : 'Nenhum selecionado';
         }
 
-        // --- FUNÇÃO PRINCIPAL MODIFICADA ---
         setupControlPanel() {
             const upgradeButtonText = PLATFORM.upgradeButtonText;
-            const allDivs = document.querySelectorAll('div.truncate');
             let upgradeButton = null;
-
-            for (const div of allDivs) {
-                if (div.textContent.includes(upgradeButtonText)) {
-                    upgradeButton = div.closest('.__menu-item');
+            // A busca pelo botão de upgrade precisa ser mais flexível
+            const menuItems = document.querySelectorAll('.__menu-item');
+            for (const item of menuItems) {
+                if (item.textContent.includes(upgradeButtonText)) {
+                    upgradeButton = item;
                     break;
                 }
             }
-
             if (!upgradeButton) {
-                console.warn(`[ChatManager] Botão de upgrade ("${upgradeButtonText}") não encontrado.`);
                 return;
             }
-
             if (document.querySelector('.mass-actions')) {
                 this.updateSelectedCount();
                 return;
             }
-
-            console.log("[ChatManager] Botão de upgrade encontrado. Substituindo pelo painel de controle.");
             const controls = this.createControlsElement();
             upgradeButton.parentNode.replaceChild(controls, upgradeButton);
             this.updateSelectedCount();
@@ -164,38 +173,92 @@
         }
     }
 
+    // --- CLASSE CHATMANAGER CORRIGIDA ---
     class ChatManager {
-        constructor(uiManager) { this.ui = uiManager; }
-        async getAccessToken() { /* ...código omitido para brevidade... */ }
-        getChatId(element) { /* ...código omitido para brevidade... */ }
-        hasPriorityEmoji(chatItem) { /* ...código omitido para brevidade... */ }
-        selectChatsWithoutPriorityEmoji() { /* ...código omitido para brevidade... */ }
-        async updateChats(body) { /* ...código omitido para brevidade... */ }
-        // A lógica interna destas funções permanece a mesma da versão anterior
-    }
-    // Implementação completa das funções do ChatManager (coladas da versão anterior)
-    ChatManager.prototype.getAccessToken = async function() { try { const r = await fetch(`${PLATFORM.api.base}${PLATFORM.api.tokenEndpoint}`); if (!r.ok) throw new Error(`${r.statusText}`); return PLATFORM.api.tokenExtractor(await r.json()); } catch (e) { console.error('Erro token:', e); this.ui.showStatus(`Erro token: ${e.message}`, 'error'); return null; }};
-    ChatManager.prototype.getChatId = function(element) { const link = element.closest(SELECTOR.chatLink); return link ? new URL(link.href).pathname.split('/').pop() : null; };
-    ChatManager.prototype.hasPriorityEmoji = function(chatItem) { const title = chatItem.querySelector(SELECTOR.chatTitle); return title && title.textContent.includes(PRIORITY_EMOJI); };
-    ChatManager.prototype.selectChatsWithoutPriorityEmoji = function() { document.querySelectorAll(SELECTOR.chatItems).forEach(item => { const cb = item.querySelector('.dialog-checkbox'); if (cb) cb.checked = !this.hasPriorityEmoji(item); }); this.ui.updateSelectedCount(); };
-    ChatManager.prototype.updateChats = async function(body) { const items = Array.from(document.querySelectorAll('.dialog-checkbox:checked')); if (items.length === 0) { this.ui.showStatus('Nenhuma conversa selecionada', 'error'); return; } const action = body.is_archived ? 'arquivando' : 'excluindo'; const statusEl = this.ui.showStatus(`${action} ${items.length} conversas...`); const token = await this.getAccessToken(); if (!token) return; const results = await Promise.allSettled(items.map(async cb => { const item = cb.closest(SELECTOR.chatItems); const id = this.getChatId(item); if (!id) return Promise.reject('ID não encontrado'); const r = await fetch(`${PLATFORM.api.base}${PLATFORM.api.conversationEndpoint}${id}`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) return Promise.reject(`HTTP ${r.status}`); if (item) item.style.opacity = '0.5'; return Promise.resolve(); })); const processed = results.filter(r => r.status === 'fulfilled').length; if (processed > 0) { this.ui.showStatus(`${processed} conversas ${action.slice(0, -1)}as com sucesso!`, 'success'); setTimeout(() => window.location.reload(), 1500); } else { this.ui.showStatus(`Erro ao processar conversas.`, 'error'); }};
+        constructor(uiManager) {
+            this.ui = uiManager;
+        }
 
+        async getAccessToken() {
+            try {
+                const response = await fetch(`${API_BASE}${PLATFORM.api.tokenEndpoint}`);
+                if (!response.ok) throw new Error(`A resposta da rede não foi OK: ${response.statusText}`);
+                const data = await response.json();
+                return PLATFORM.api.tokenExtractor(data);
+            } catch (error) {
+                console.error('Erro ao obter token:', error);
+                this.ui.showStatus(`Erro de token: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        getChatId(element) {
+            const chatLink = element.closest(SELECTOR.chatLink);
+            return chatLink ? new URL(chatLink.href).pathname.split('/').pop() : null;
+        }
+
+        hasPriorityEmoji(chatItem) {
+            const titleDiv = chatItem.querySelector(SELECTOR.chatTitle);
+            return titleDiv && titleDiv.textContent.includes(PRIORITY_EMOJI);
+        }
+
+        selectChatsWithoutPriorityEmoji() {
+            document.querySelectorAll(SELECTOR.chatItems).forEach(item => {
+                const checkbox = item.querySelector('.dialog-checkbox');
+                if (checkbox) checkbox.checked = !this.hasPriorityEmoji(item);
+            });
+            this.ui.updateSelectedCount();
+        }
+
+        async updateChats(body) {
+            const checkedItems = Array.from(document.querySelectorAll('.dialog-checkbox:checked'));
+            if (checkedItems.length === 0) {
+                this.ui.showStatus('Nenhuma conversa selecionada', 'error');
+                return;
+            }
+            const action = body.is_archived ? 'arquivando' : 'excluindo';
+            const statusEl = this.ui.showStatus(`${action} ${checkedItems.length} conversas...`);
+            const accessToken = await this.getAccessToken();
+            if (!accessToken) return;
+
+            const promises = checkedItems.map(async (checkbox) => {
+                const chatItem = checkbox.closest(SELECTOR.chatItems);
+                const chatId = this.getChatId(chatItem);
+                if (!chatId) return Promise.reject('Chat ID não encontrado');
+                const response = await fetch(`${API_BASE}${PLATFORM.api.conversationEndpoint}${chatId}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) return Promise.reject(`HTTP ${response.status}`);
+                if (chatItem) chatItem.style.opacity = '0.5';
+                return Promise.resolve();
+            });
+
+            const results = await Promise.allSettled(promises);
+            const processed = results.filter(r => r.status === 'fulfilled').length;
+
+            if (processed > 0) {
+                this.ui.showStatus(`${processed} conversas ${body.is_archived ? 'arquivadas' : 'excluídas'} com sucesso!`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                 this.ui.showStatus(`Erro ao processar conversas.`, 'error');
+            }
+        }
+    }
 
     class ChatManagerApp {
         constructor() {
             this.uiManager = new UIManager();
             this.chatManager = new ChatManager(this.uiManager);
             window.chatManager = this.chatManager;
-            console.log('[ChatManager] App construído.');
         }
 
         run() {
             this.uiManager.setupControlPanel();
-            const items = document.querySelectorAll(SELECTOR.chatItems);
-            if (items.length === 0) {
-                console.warn(`[ChatManager] ⚠️ Nenhum item de chat encontrado.`);
-            }
-            items.forEach(item => this.uiManager.createCheckbox(item));
+            document.querySelectorAll(SELECTOR.chatItems).forEach(item => {
+                this.uiManager.createCheckbox(item);
+            });
         }
 
         setupObserver() {
@@ -206,19 +269,16 @@
                 }, 500);
             });
             observer.observe(document.body, { childList: true, subtree: true });
-            console.log('[ChatManager] Observador do DOM está ativo.');
         }
     }
 
     function waitForElement(selector, callback) {
-        console.log(`[ChatManager] Aguardando por: "${selector}"`);
         const interval = setInterval(() => {
             if (document.querySelector(selector)) {
-                console.log(`[ChatManager] ✅ Elemento "${selector}" encontrado!`);
                 clearInterval(interval);
                 callback();
             }
-        }, 1000);
+        }, 500);
     }
 
     waitForElement(SELECTOR.entryPoint, () => {

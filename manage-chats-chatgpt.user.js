@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Gerenciador de chats ChatGPT
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Gerenciamento em massa de conversas em plataformas de IA
-// @author       luascfl
+// @author       luascfl (com correções da comunidade)
 // @match        https://chat.openai.com/*
 // @match        https://chatgpt.com/*
 // @icon         https://cdn-icons-png.flaticon.com/512/16459/16459818.png
@@ -20,17 +20,16 @@
 
     /**
      * Configuração específica para cada plataforma
-     * Facilita a adaptação para outras plataformas de IA no futuro
      */
     const PLATFORMS = {
         'chat.openai.com': {
             name: 'ChatGPT',
             selectors: {
-                // SELETORES ATUALIZADOS AQUI
-                chatList: 'nav', // Alvo mais simples e robusto para o painel de navegação
-                chatItems: 'li:has(a[href^="/c/"])', // Encontra itens de lista que contêm um link de chat
-                chatLink: 'a[href^="/c/"]', // Permanece o mesmo, é um seletor estável
-                chatTitle: 'div.truncate' // A classe 'truncate' é usada para o título visível
+                // SELETORES ATUALIZADOS PARA A NOVA ESTRUTURA
+                chatList: 'nav', // O painel de navegação principal
+                chatItems: 'a[href^="/c/"]', // O item de chat agora é o próprio link <a>
+                chatLink: 'a[href^="/c/"]', // Redundante, mas mantém a consistência
+                chatTitle: 'div.truncate' // A div que contém o título visível
             },
             api: {
                 base: window.location.origin,
@@ -40,34 +39,9 @@
             },
             priorityEmoji: '❗'
         },
-        // Modelo para adicionar outras plataformas
-        /*
-        'exemplo.com': {
-            name: 'Nome da Plataforma',
-            selectors: {
-                chatList: '.seletor-lista-chats',
-                chatItems: '.seletor-item-chat',
-                chatLink: '.seletor-link-chat',
-                chatTitle: '.seletor-titulo-chat'
-            },
-            api: {
-                base: 'https://api.exemplo.com',
-                tokenEndpoint: '/auth/token',
-                conversationEndpoint: '/api/conversations/',
-                tokenExtractor: (data) => data.token
-            },
-            priorityEmoji: '⭐'
-        }
-        */
     };
 
-    // Detecta a plataforma atual
-    const getCurrentPlatform = () => {
-        const hostname = window.location.hostname;
-        return PLATFORMS[hostname] || PLATFORMS['chat.openai.com']; // Padrão para ChatGPT
-    };
-
-    const PLATFORM = getCurrentPlatform();
+    const PLATFORM = PLATFORMS[window.location.hostname] || PLATFORMS['chat.openai.com'];
     const API_BASE = PLATFORM.api.base;
     const SELECTOR = PLATFORM.selectors;
     const PRIORITY_EMOJI = PLATFORM.priorityEmoji;
@@ -83,157 +57,35 @@
         addStyles() {
             const styleEl = document.createElement('style');
             styleEl.innerHTML = `
-              .mass-actions {
-                  background-color: var(--surface-primary);
-                  padding: 10px;
-                  border-radius: 8px;
-                  margin-bottom: 16px;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-              }
-
-              .mass-actions-title {
-                  font-weight: bold;
-                  margin-bottom: 10px;
-                  font-size: 14px;
-                  color: var(--text-primary);
-              }
-
-              .mass-actions-btn {
-                  padding: 6px 12px;
-                  border-radius: 6px;
-                  font-size: 13px;
-                  font-weight: 500;
-                  cursor: pointer;
-                  transition: all 0.2s;
-                  border: 1px solid var(--border-primary);
-                  margin-bottom: 5px;
-              }
-
-              .mass-actions-btn:hover {
-                  opacity: 0.9;
-              }
-
-              .btn-select-all {
-                  background-color: var(--surface-secondary);
-              }
-
-              .btn-deselect-all {
-                  background-color: var(--surface-secondary);
-              }
-
-              .btn-select-without-emoji {
-                  background-color: var(--surface-secondary);
-              }
-
-              .btn-archive {
-                  background-color: var(--surface-tertiary);
-              }
-
-              .btn-delete {
-                  background-color: rgba(255, 76, 76, 0.1);
-                  color: #ff4c4c;
-              }
-
-              .checkbox-container {
-                  position: absolute;
-                  left: 8px;
-                  top: 0;
-                  bottom: 0;
-                  display: flex;
-                  align-items: center;
-                  z-index: 10;
-              }
-
-              .dialog-checkbox {
-                  cursor: pointer;
-                  width: 16px;
-                  height: 16px;
-              }
-
-              .chat-item-container {
-                  position: relative;
-              }
-
-              .chat-link-padded {
-                  padding-left: 30px !important;
-              }
-
-              .chat-action-status {
-                  position: fixed;
-                  top: 20px;
-                  right: 20px;
-                  padding: 12px 16px;
-                  background: var(--surface-primary);
-                  border-radius: 8px;
-                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                  z-index: 1000;
-                  display: flex;
-                  align-items: center;
-                  font-size: 14px;
-              }
-
-              .status-icon {
-                  margin-right: 8px;
-                  font-size: 18px;
-              }
-
-              .status-success {
-                  color: #4caf50;
-              }
-
-              .status-error {
-                  color: #f44336;
-              }
-
-              .status-loading {
-                  color: #2196f3;
-              }
-
-              @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-              }
-
-              .loading-spinner {
-                  animation: spin 1s linear infinite;
-                  display: inline-block;
-              }
-
-              .select-count {
-                  margin-left: 8px;
-                  font-size: 13px;
-                  color: var(--text-secondary);
-              }
+              .mass-actions { padding: 10px; margin-bottom: 16px; border-radius: 8px; }
+              .mass-actions-title { font-weight: bold; margin-bottom: 10px; font-size: 14px; }
+              .mass-actions-btn { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-primary); margin-bottom: 5px; }
+              .mass-actions-btn:hover { opacity: 0.9; }
+              .btn-delete { background-color: rgba(255, 76, 76, 0.1); color: #ff4c4c; }
+              .dialog-checkbox { cursor: pointer; }
+              .chat-action-status { position: fixed; top: 20px; right: 20px; padding: 12px 16px; background: var(--surface-primary); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; display: flex; align-items: center; font-size: 14px; }
+              .status-icon { margin-right: 8px; font-size: 18px; }
+              .status-success { color: #4caf50; }
+              .status-error { color: #f44336; }
+              .status-loading { color: #2196f3; }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              .loading-spinner { animation: spin 1s linear infinite; display: inline-block; }
+              .select-count { margin-left: 8px; font-size: 13px; color: var(--text-secondary); }
             `;
             document.head.appendChild(styleEl);
         }
 
         showStatus(message, type = 'loading') {
-            // Remove qualquer status existente
-            const existingStatus = document.querySelector('.chat-action-status');
-            if (existingStatus) existingStatus.remove();
-
+            document.querySelector('.chat-action-status')?.remove();
             const statusEl = document.createElement('div');
             statusEl.className = 'chat-action-status';
-
             let icon = '';
-            if (type === 'loading') {
-                icon = '<span class="status-icon status-loading"><span class="loading-spinner">⟳</span></span>';
-            } else if (type === 'success') {
-                icon = '<span class="status-icon status-success">✓</span>';
-            } else if (type === 'error') {
-                icon = '<span class="status-icon status-error">✕</span>';
-            }
-
+            if (type === 'loading') icon = '<span class="status-icon status-loading"><span class="loading-spinner">⟳</span></span>';
+            else if (type === 'success') icon = '<span class="status-icon status-success">✓</span>';
+            else if (type === 'error') icon = '<span class="status-icon status-error">✕</span>';
             statusEl.innerHTML = `${icon}${message}`;
             document.body.appendChild(statusEl);
-
-            if (type !== 'loading') {
-                setTimeout(() => {
-                    statusEl.remove();
-                }, 3000);
-            }
-
+            if (type !== 'loading') setTimeout(() => statusEl.remove(), 3000);
             return statusEl;
         }
 
@@ -245,51 +97,29 @@
             }
         }
 
-        createCheckbox(chatItem) {
-            // Verifica se já existe um checkbox
-            if (chatItem.querySelector('.checkbox-container')) return;
+        createCheckbox(chatItem) { // chatItem é agora o elemento <a>
+            if (chatItem.querySelector('.dialog-checkbox-container')) return;
 
-            // Adiciona classe ao container do chat
-            chatItem.classList.add('chat-item-container');
-
-            // Encontra o link de chat
-            const chatLink = chatItem.querySelector(SELECTOR.chatLink);
-            if (!chatLink) return;
-
-            // Adiciona classe ao link para dar espaço ao checkbox
-            chatLink.classList.add('chat-link-padded');
-
-            // Cria container do checkbox
             const checkboxContainer = document.createElement('div');
-            checkboxContainer.className = 'checkbox-container';
+            checkboxContainer.className = 'dialog-checkbox-container flex items-center pr-2';
 
-            // Cria o checkbox
+            checkboxContainer.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const checkbox = e.currentTarget.querySelector('.dialog-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.className = 'dialog-checkbox';
+            checkbox.className = 'dialog-checkbox h-4 w-4';
             checkbox.addEventListener('change', () => this.updateSelectedCount());
-            checkbox.addEventListener('click', (e) => {
-                e.stopPropagation(); // Impede que o clique no checkbox navegue para o chat
-            });
 
-            // Adiciona checkbox ao container
             checkboxContainer.appendChild(checkbox);
-
-            // Adiciona o container ao item de chat
-            chatItem.appendChild(checkboxContainer);
-        }
-
-        ensureCorrectCheckboxes() {
-            document.querySelectorAll(SELECTOR.chatItems).forEach(chatItem => {
-                // Remove qualquer checkbox antigo que possa estar dentro do link
-                const oldCheckbox = chatItem.querySelector('a .dialog-checkbox');
-                if (oldCheckbox) {
-                    oldCheckbox.remove();
-                }
-
-                // Cria um novo checkbox corretamente posicionado
-                this.createCheckbox(chatItem);
-            });
+            chatItem.prepend(checkboxContainer);
         }
 
         setupControlPanel() {
@@ -309,20 +139,17 @@
                 <span class="selected-count select-count"></span>
               </div>
             `;
-
-            // Configura os eventos dos botões
             this.setupButtonHandlers(controls);
-
             chatList.prepend(controls);
-
-            // Adiciona checkboxes a todos os itens de chat existentes
-            document.querySelectorAll(SELECTOR.chatItems).forEach(chatItem => this.createCheckbox(chatItem));
             this.updateSelectedCount();
         }
 
         setupButtonHandlers(controls) {
             controls.querySelector('.btn-select-all').addEventListener('click', () => {
-                document.querySelectorAll('.dialog-checkbox').forEach(cb => cb.checked = true);
+                document.querySelectorAll(SELECTOR.chatItems).forEach(item => {
+                    const cb = item.querySelector('.dialog-checkbox');
+                    if (cb) cb.checked = true;
+                });
                 this.updateSelectedCount();
             });
 
@@ -370,42 +197,33 @@
         }
 
         getChatId(element) {
-            const chatItem = element.closest('li');
-            if (!chatItem) return null;
-            const link = chatItem.querySelector(SELECTOR.chatLink);
-            return link ? new URL(link.href).pathname.split('/').pop() : null;
+            const chatLink = element.closest(SELECTOR.chatLink);
+            return chatLink ? new URL(chatLink.href).pathname.split('/').pop() : null;
         }
 
-        hasPriorityEmoji(chatItem) {
-            const link = chatItem.querySelector(SELECTOR.chatLink);
-            if (!link) return false;
-
-            const titleDiv = link.querySelector(SELECTOR.chatTitle);
+        hasPriorityEmoji(chatItem) { // chatItem é o elemento <a>
+            const titleDiv = chatItem.querySelector(SELECTOR.chatTitle);
             return titleDiv && titleDiv.textContent.includes(PRIORITY_EMOJI);
         }
 
         selectChatsWithoutPriorityEmoji() {
-            const chatItems = document.querySelectorAll(SELECTOR.chatItems);
-
-            chatItems.forEach(chatItem => {
+            document.querySelectorAll(SELECTOR.chatItems).forEach(chatItem => {
                 const checkbox = chatItem.querySelector('.dialog-checkbox');
                 if (checkbox) {
-                    // Marca o checkbox apenas se NÃO tiver o emoji de prioridade
                     checkbox.checked = !this.hasPriorityEmoji(chatItem);
                 }
             });
         }
 
         async updateChats(body) {
-            const checkboxes = document.querySelectorAll('.dialog-checkbox:checked');
-            if (checkboxes.length === 0) {
+            const checkedItems = Array.from(document.querySelectorAll('.dialog-checkbox:checked'));
+            if (checkedItems.length === 0) {
                 this.ui.showStatus('Nenhuma conversa selecionada', 'error');
                 return;
             }
 
             const action = body.is_archived ? 'arquivando' : 'excluindo';
-            const statusEl = this.ui.showStatus(`${action.charAt(0).toUpperCase() + action.slice(1)} ${checkboxes.length} conversas...`);
-
+            const statusEl = this.ui.showStatus(`${action.charAt(0).toUpperCase() + action.slice(1)} ${checkedItems.length} conversas...`);
             const accessToken = await this.getAccessToken();
             if (!accessToken) {
                 this.ui.showStatus('Token de acesso não encontrado', 'error');
@@ -414,34 +232,25 @@
 
             try {
                 let processed = 0;
-                await Promise.all(Array.from(checkboxes).map(async (checkbox) => {
-                    const chatId = this.getChatId(checkbox);
+                await Promise.all(checkedItems.map(async (checkbox) => {
+                    const chatItem = checkbox.closest(SELECTOR.chatItems);
+                    const chatId = this.getChatId(chatItem);
                     if (!chatId) return;
 
                     const response = await fetch(`${API_BASE}${PLATFORM.api.conversationEndpoint}${chatId}`, {
                         method: 'PATCH',
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const chatItem = checkbox.closest('li');
                     if (chatItem) chatItem.style.opacity = '0.5';
                     processed++;
-
-                    // Atualizar status com progresso
-                    statusEl.innerHTML = `<span class="status-icon status-loading"><span class="loading-spinner">⟳</span></span>${action.charAt(0).toUpperCase() + action.slice(1)} conversas... (${processed}/${checkboxes.length})`;
+                    statusEl.innerHTML = `<span class="status-icon status-loading"><span class="loading-spinner">⟳</span></span>${action.charAt(0).toUpperCase() + action.slice(1)} conversas... (${processed}/${checkedItems.length})`;
                 }));
 
                 this.ui.showStatus(`${processed} conversas ${body.is_archived ? 'arquivadas' : 'excluídas'} com sucesso!`, 'success');
-
-                // Recarregar a página após um breve atraso para mostrar o status
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                setTimeout(() => window.location.reload(), 1500);
             } catch (error) {
                 console.error('Erro ao processar conversas:', error);
                 this.ui.showStatus(`Erro ao processar conversas: ${error.message}`, 'error');
@@ -456,53 +265,37 @@
         constructor() {
             this.uiManager = new UIManager();
             this.chatManager = new ChatManager(this.uiManager);
-
-            // Expõe o chatManager para uso nos event handlers
             window.chatManager = this.chatManager;
         }
 
         init() {
-            // Inicialização com delay para garantir que a página carregou completamente
+            const FADE_IN_DELAY = 2000;
             setTimeout(() => {
-                this.uiManager.setupControlPanel();
-                this.uiManager.ensureCorrectCheckboxes();
+                this.run();
                 this.setupObserver();
-            }, 2000); // Aumentado para 2 segundos para garantir que a UI do chatgpt carregue
+            }, FADE_IN_DELAY);
+        }
+        
+        run() {
+            this.uiManager.setupControlPanel();
+            document.querySelectorAll(SELECTOR.chatItems).forEach(item => {
+                this.uiManager.createCheckbox(item);
+            });
         }
 
         setupObserver() {
-            // Observador para detectar mudanças na lista de chats
             const observer = new MutationObserver((mutations) => {
-                for (const mutation of mutations) {
-                    if (mutation.type === 'childList') {
-                        // Verifica se o painel de controle ou novos itens de chat precisam ser adicionados
-                        this.uiManager.setupControlPanel();
-                        this.uiManager.ensureCorrectCheckboxes();
-
-                        // Adiciona checkboxes a novos itens que possam ter sido adicionados
-                        mutation.addedNodes.forEach(node => {
-                            if (node.nodeType === 1) { // Apenas nós de elemento
-                                if (node.matches(SELECTOR.chatItems)) {
-                                    this.uiManager.createCheckbox(node);
-                                } else {
-                                    node.querySelectorAll(SELECTOR.chatItems).forEach(item => {
-                                        this.uiManager.createCheckbox(item);
-                                    });
-                                }
-                            }
-                        });
-                    }
-                }
+                // Usamos um debounce para evitar execuções múltiplas em atualizações rápidas do DOM
+                if (this.debounceTimeout) clearTimeout(this.debounceTimeout);
+                this.debounceTimeout = setTimeout(() => {
+                    this.run();
+                }, 300);
             });
 
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
+            observer.observe(document.body, { childList: true, subtree: true });
         }
     }
 
-    // Inicializa a aplicação
     const app = new ChatManagerApp();
     app.init();
 })();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gerenciador de chats ChatGPT
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.7
 // @description  Gerenciamento em massa de conversas em plataformas de IA
 // @author       luascfl (com correções da comunidade)
 // @match        https://chat.openai.com/*
